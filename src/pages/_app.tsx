@@ -17,7 +17,7 @@ export default function App({ Component, pageProps }: AppProps) {
     >
       <MeshProvider>
         <Component {...pageProps} />
-      </ MeshProvider>
+      </MeshProvider>
     </ChakraProvider>
   )
 }
