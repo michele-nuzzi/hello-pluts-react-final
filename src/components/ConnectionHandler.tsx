@@ -1,7 +1,11 @@
 import { Button, Modal, ModalBody, ModalCloseButton, ModalContent, ModalHeader, ModalOverlay, useDisclosure } from "@chakra-ui/react";
 import { useWallet, useWalletList } from "@meshsdk/react";
 
-export default function ConnectionHandler() {
+interface Props {
+  isDisabled: boolean;
+}
+
+export default function ConnectionHandler(props: Props) {
   const {isOpen, onOpen, onClose} = useDisclosure();
   const {connected, connect, disconnect} = useWallet();
   const wallets = useWalletList();
@@ -9,12 +13,12 @@ export default function ConnectionHandler() {
   return (
     <>
       {connected ? (
-        <Button size="lg" colorScheme="blue" onClick={disconnect}>
-          Disconnect
+        <Button size="lg" colorScheme="blue" isDisabled={props.isDisabled} onClick={disconnect}>
+          Disconnect Wallet
         </Button> 
       ) : (
         <>
-          <Button size="lg" colorScheme="blue" onClick={onOpen}>
+          <Button size="lg" colorScheme="blue" isDisabled={props.isDisabled} onClick={onOpen}>
             Connect Wallet
           </Button>
           <Modal isOpen={isOpen} onClose={onClose}>
@@ -27,7 +31,7 @@ export default function ConnectionHandler() {
                   <div
                     key={i}
                     className="center-child-flex-even p100-w click-pointer"
-                    style={{marginBottom: '5vh'}}
+                    style={{marginBottom: '10px'}}
                     onClick={() => {
                       connect(w.name);
                       // important to update `isOpen`

@@ -1,4 +1,5 @@
-import { Button, useToast } from "@chakra-ui/react";
+import { useState } from "react";
+import { Container, Box, Text, Button, Input, useToast } from "@chakra-ui/react";
 import { useNetwork, useWallet } from "@meshsdk/react";
 
 import style from "@/styles/Home.module.css";
@@ -7,24 +8,26 @@ import { lockTx } from "@/offchain/lockTx";
 import { unlockTx } from "@/offchain/unlockTx";
 
 export default function Home() {
-  const { wallet, connected } = useWallet();
+  const [blockfrostApiKey, setBlockfrostApiKey] = useState<string>('');
+  const {wallet, connected} = useWallet();
   const network = useNetwork();
   const toast = useToast();
 
   if (typeof network === "number" && network !== 0) {
     return (
-      <div className={[style.pageContainer, "center-child-flex-even"].join(" ")}>
-        <b style={{margin: "auto 10vw"}}>
-          Make sure to set your wallet in testnet mode;<br/>
-          We are playing with founds here!
-        </b>
-        <Button onClick={() => window.location.reload()} style={{margin: "auto 10vw"}}>Refresh page</Button>
+      <div className={style.root}>
+        <Container maxW="container.sm" py={12} centerContent>
+          <Box bg="white" w="100%" p={8}>
+            <Text fontSize="xl" mb={6}>Make sure to set your wallet in testnet mode;<br/>We are playing with founds here!</Text>
+            <Button size="lg" colorScheme="blue" onClick={() => window.location.reload()}>Refresh page</Button>
+          </Box>
+        </Container>
       </div>
     )
   }
 
   const onLock = () => {
-    lockTx(wallet)
+    lockTx(wallet, blockfrostApiKey)
       // lock transaction created successfully
       .then(txHash => toast({
         title: `lock tx submitted: https://preprod.cardanoscan.io/transaction/${txHash}`,
@@ -41,7 +44,7 @@ export default function Home() {
   }
 
   const onUnlock = () => {
-    unlockTx(wallet)
+    unlockTx(wallet, blockfrostApiKey)
       // unlock transaction created successfully
       .then(txHash => toast({
         title: `unlock tx submitted: https://preprod.cardanoscan.io/transaction/${txHash}`,
@@ -58,14 +61,31 @@ export default function Home() {
   }
 
   return (
-    <div className={[style.pageContainer, "center-child-flex-even"].join(" ")}>
-      <ConnectionHandler />
-      { connected && (
-        <>
-          <Button onClick={onLock}>Lock 10 tADA</Button>
-          <Button onClick={onUnlock}>Unlock</Button>
-        </>
-      )}
+    <div className={style.root}>
+      <Container maxW="container.sm" py={12} centerContent>
+        <Box bg="white" w="100%" p={4} mb={4}>
+          <Text fontSize="md" mb={4}>
+            In order to run this example you need to provide a Blockfrost API Key<br />
+            More info on <a href="https://blockfrost.io/" target="_blank" style={{color:'#0BC5EA'}}>blockfrost.io</a>
+          </Text>
+          <Input
+            variant='filled'
+            placeholder='Blockfrost API Key'
+            size='lg'
+            value={blockfrostApiKey}
+            onChange={e => setBlockfrostApiKey(e.target.value)}
+          />
+        </Box>
+        <Box bg="white" w="100%" p={4}>
+          <ConnectionHandler isDisabled={blockfrostApiKey === ''} />
+          {connected && (
+            <>
+              <Button size="lg" ml={4} colorScheme="teal" isDisabled={blockfrostApiKey === ''} onClick={onLock}>Lock 10 tADA</Button>
+              <Button size="lg" ml={4} colorScheme="teal" isDisabled={blockfrostApiKey === ''} onClick={onUnlock}>Unlock</Button>
+            </>
+          )}
+        </Box>
+      </Container>
     </div>
   );
 }

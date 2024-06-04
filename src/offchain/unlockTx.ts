@@ -1,13 +1,13 @@
 import { Address, isData, DataB, Tx } from "@harmoniclabs/plu-ts";
 import { fromAscii, uint8ArrayEq } from "@harmoniclabs/uint8array-utils";
+import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
 import { BrowserWallet } from "@meshsdk/core";
 import { script, scriptTestnetAddr } from "../../contracts/helloPluts";
 import { toPlutsUtxo } from "./mesh-utils";
 import getTxBuilder from "./getTxBuilder";
-import Blockfrost from "./blockfrost";
 
-async function getUnlockTx(wallet: BrowserWallet): Promise<Tx> {
-  const txBuilder = await getTxBuilder();
+async function getUnlockTx(wallet: BrowserWallet, Blockfrost: BlockfrostPluts): Promise<Tx> {
+  const txBuilder = await getTxBuilder(Blockfrost);
   const myAddrs = (await wallet.getUsedAddresses()).map(Address.fromString);
   const myUTxOs = (await wallet.getUtxos()).map(toPlutsUtxo);
 
@@ -25,19 +25,19 @@ async function getUnlockTx(wallet: BrowserWallet): Promise<Tx> {
     const datum = utxo.resolved.datum;
 
     // datum is inline and is only bytes
-    if (isData( datum ) && datum instanceof DataB) {
+    if (isData(datum) && datum instanceof DataB) {
       const pkh = datum.bytes.toBuffer();
 
       // search if it corresponds to one of my public keys
       const myPkhIdx = myAddrs.findIndex(
-        addr => uint8ArrayEq( pkh, addr.paymentCreds.hash.toBuffer() )
+        addr => uint8ArrayEq(pkh, addr.paymentCreds.hash.toBuffer())
       );
 
       // not a pkh of mine; not an utxo I can unlock
-      if( myPkhIdx < 0 ) return false;
+      if (myPkhIdx < 0) return false;
 
       // else found my locked utxo
-      myAddr = myAddrs[ myPkhIdx ];
+      myAddr = myAddrs[myPkhIdx];
 
       return true;
     }
@@ -59,16 +59,17 @@ async function getUnlockTx(wallet: BrowserWallet): Promise<Tx> {
         redeemer: new DataB(fromAscii("Hello plu-ts")) // be polite
       }
     }],
-    requiredSigners: [ myAddr.paymentCreds.hash ],
+    requiredSigners: [myAddr.paymentCreds.hash],
     // make sure to include collateral when using contracts
-    collaterals: [ myUTxOs[0] ],
+    collaterals: [myUTxOs[0]],
     // send everything back to us
     changeAddress: myAddr
   });
 }
 
-export async function unlockTx(wallet: BrowserWallet): Promise<string> {
-  const unsingedTx = await getUnlockTx(wallet);
+export async function unlockTx(wallet: BrowserWallet, projectId: string): Promise<string> {
+  const Blockfrost = new BlockfrostPluts({ projectId });
+  const unsingedTx = await getUnlockTx(wallet, Blockfrost);
 
   const txStr = await wallet.signTx(
     unsingedTx.toCbor().toString(),

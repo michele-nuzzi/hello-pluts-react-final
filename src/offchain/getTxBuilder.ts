@@ -1,5 +1,5 @@
 import { TxBuilder } from "@harmoniclabs/plu-ts";
-import Blockfrost from "./blockfrost";
+import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
 
 /**
  * we don't want to do too many API call if we already have our `txBuilder`
@@ -8,7 +8,7 @@ import Blockfrost from "./blockfrost";
 **/
 let _cachedTxBuilder: TxBuilder | undefined = undefined
 
-export default async function getTxBuilder(): Promise<TxBuilder> {
+export default async function getTxBuilder(Blockfrost: BlockfrostPluts): Promise<TxBuilder> {
   if (!(_cachedTxBuilder instanceof TxBuilder)) {
     const parameters = await Blockfrost.epochsLatestParameters();
     _cachedTxBuilder = new TxBuilder(parameters);
