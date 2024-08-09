@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, ChangeEvent } from "react";
 import { Container, Box, Text, Button, Input, useToast } from "@chakra-ui/react";
 import { useNetwork, useWallet } from "@meshsdk/react";
 
@@ -13,6 +13,10 @@ export default function Home() {
   const network = useNetwork();
   const toast = useToast();
 
+  useEffect(() => {
+    setBlockfrostApiKey(window.localStorage.getItem('BLOCKFROST_API_KEY') || '');
+  }, []);
+
   if (typeof network === "number" && network !== 0) {
     return (
       <div className={style.root}>
@@ -24,6 +28,11 @@ export default function Home() {
         </Container>
       </div>
     )
+  }
+
+  const onChangeBlockfrostApiKey = (e: ChangeEvent<HTMLInputElement>) => {
+    setBlockfrostApiKey(e.target.value);
+    window.localStorage.setItem('BLOCKFROST_API_KEY', e.target.value);
   }
 
   const onLock = () => {
@@ -73,7 +82,7 @@ export default function Home() {
             placeholder='Blockfrost API Key'
             size='lg'
             value={blockfrostApiKey}
-            onChange={e => setBlockfrostApiKey(e.target.value)}
+            onChange={onChangeBlockfrostApiKey}
           />
         </Box>
         <Box bg="white" w="100%" p={4}>

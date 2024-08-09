@@ -1,32 +1,40 @@
-import { Address, PPubKeyHash, PScriptContext, PaymentCredentials, Script, bool, bs, compile, makeValidator, pfn } from "@harmoniclabs/plu-ts";
+import { Address, PScriptContext, ScriptType, Credential, Script, compile, pfn, unit, plet, punBData, pmatch, perror, PMaybe, data, pBool, passert } from "@harmoniclabs/plu-ts";
 
-const helloPluts = pfn([
-  PPubKeyHash.type,
-  bs,
+const contract = pfn([
   PScriptContext.type
-], bool)
-((owner, message, ctx) => {
+], unit)
+(({ redeemer, tx, purpose }) => {
+  const message = plet(punBData.$(redeemer));
+
+  const maybeDatum = plet(
+    pmatch(purpose)
+    .onSpending(({ datum }) => datum)
+    ._(_ => perror(PMaybe(data).type))
+  );
+
+  const signedByOwner = plet(
+    pmatch(maybeDatum)
+    .onNothing( _ => pBool(true))
+    .onJust(({ val }) =>
+      tx.signatories.includes(punBData.$(val))
+    )
+  );
+
   const isBeingPolite = message.eq("Hello plu-ts");
-  const signedByOwner = ctx.tx.signatories.some(owner.eq);
-  return isBeingPolite.and(signedByOwner);
+
+  return passert.$(
+    signedByOwner.and(isBeingPolite)
+  );
 });
 
-///////////////////////////////////////////////////////////////////
-// ------------------------------------------------------------- //
-// ------------------------- utilities ------------------------- //
-// ------------------------------------------------------------- //
-///////////////////////////////////////////////////////////////////
-
-export const untypedValidator = makeValidator(helloPluts);
-
-export const compiledContract = compile(untypedValidator);
+export const compiledContract = compile(contract);
 
 export const script = new Script(
-  "PlutusScriptV2",
+  ScriptType.PlutusV3,
   compiledContract
 );
 
 export const scriptTestnetAddr = new Address(
   "testnet",
-  PaymentCredentials.script(script.hash)
+  Credential.script(script.hash)
 );
