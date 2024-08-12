@@ -71,6 +71,8 @@ export async function unlockTx(wallet: BrowserWallet, projectId: string): Promis
   const Blockfrost = new BlockfrostPluts({ projectId });
   const unsingedTx = await getUnlockTx(wallet, Blockfrost);
 
+  console.log(JSON.stringify(unsingedTx.toJson(), undefined, 2));
+
   const txStr = await wallet.signTx(
     unsingedTx.toCbor().toString(),
     true // partial sign because we have smart contracts in the transaction
