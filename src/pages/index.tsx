@@ -62,7 +62,7 @@ export default function Home() {
       // unlock transaction failed
       .catch(e => {
         toast({
-          title: "something went wrong",
+          title: "something went wrong: " + e?.messge ,
           status: "error"
         });
         console.error(e);

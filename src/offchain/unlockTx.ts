@@ -1,5 +1,5 @@
 import { Address, isData, DataB, Tx } from "@harmoniclabs/plu-ts";
-import { fromAscii, uint8ArrayEq } from "@harmoniclabs/uint8array-utils";
+import { fromAscii, toHex, uint8ArrayEq } from "@harmoniclabs/uint8array-utils";
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
 import { BrowserWallet } from "@meshsdk/core";
 import { script, scriptTestnetAddr } from "../../contracts/helloPluts";
@@ -49,6 +49,10 @@ async function getUnlockTx(wallet: BrowserWallet, Blockfrost: BlockfrostPluts): 
     throw new Error("uopsie, are you sure your tx had enough time to get to the blockchain?");
   }
 
+  console.log(
+    script.hash.toString()
+  )
+
   return txBuilder.buildSync({
     inputs: [{
       utxo: utxoToSpend as any,
@@ -71,12 +75,17 @@ export async function unlockTx(wallet: BrowserWallet, projectId: string): Promis
   const Blockfrost = new BlockfrostPluts({ projectId });
   const unsingedTx = await getUnlockTx(wallet, Blockfrost);
 
-  console.log(JSON.stringify(unsingedTx.toJson(), undefined, 2));
-
   const txStr = await wallet.signTx(
     unsingedTx.toCbor().toString(),
     true // partial sign because we have smart contracts in the transaction
   );
 
-  return await Blockfrost.submitTx(txStr);
+  const txWit = Tx.fromCbor( txStr ).witnesses.vkeyWitnesses ?? [];
+
+  for( const wit of txWit )
+  {
+    unsingedTx.addVKeyWitness( wit );
+  }
+
+  return await Blockfrost.submitTx( unsingedTx );
 }
