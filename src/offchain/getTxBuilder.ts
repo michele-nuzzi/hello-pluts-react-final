@@ -11,8 +11,7 @@ let _cachedTxBuilder: TxBuilder | undefined = undefined
 export default async function getTxBuilder(Blockfrost: BlockfrostPluts): Promise<TxBuilder> {
   if (!(_cachedTxBuilder instanceof TxBuilder)) {
     const parameters = await Blockfrost.epochsLatestParameters();
-    
-    _cachedTxBuilder = new TxBuilder( parameters );
+    _cachedTxBuilder = new TxBuilder(parameters);
   }
   return _cachedTxBuilder;
 }
