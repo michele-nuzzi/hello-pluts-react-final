@@ -6,16 +6,48 @@ import style from "@/styles/Home.module.css";
 import ConnectionHandler from "@/components/ConnectionHandler";
 import { lockTx } from "@/offchain/lockTx";
 import { unlockTx } from "@/offchain/unlockTx";
+import { Address } from "@harmoniclabs/plu-ts";
+
+import { initializeEmulator } from "package/utils/helper";
+import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
+import { Emulator } from "package";
 
 export default function Home() {
+  const [useEmulator, setUseEmulator] = useState(false);
   const [blockfrostApiKey, setBlockfrostApiKey] = useState<string>('');
+  const [provider, setProvider] = useState<Emulator | string | null>(null);
   const {wallet, connected} = useWallet();
   const network = useNetwork();
   const toast = useToast();
 
   useEffect(() => {
     setBlockfrostApiKey(window.localStorage.getItem('BLOCKFROST_API_KEY') || '');
+
+    setUseEmulator(process.env.NEXT_PUBLIC_EMULATOR === "true");
   }, []);
+
+  useEffect(() => {
+    console.log(useEmulator, process.env.NEXT_PUBLIC_EMULATOR)
+  }, [useEmulator])
+
+  useEffect(() => {
+    if (!wallet) return;
+
+    if (useEmulator && wallet && connected) {
+      (async() => {
+        // Initialize emulator with the wallet's address
+        const walletAddress = Address.fromString(await wallet.getChangeAddress()); // Assuming `wallet.address` is a string
+        const addressBalances = new Map<Address, bigint>();
+        addressBalances.set(walletAddress, 15_000_000n); // Fund the wallet with 15 ADA
+
+        const emulator = initializeEmulator(addressBalances);
+        setProvider(emulator);
+      })()
+    } else {
+      setProvider(blockfrostApiKey);
+    }
+  }, [wallet, connected, useEmulator, blockfrostApiKey]);
+
 
   if (typeof network === "number" && network !== 0) {
     return (
@@ -35,13 +67,18 @@ export default function Home() {
     window.localStorage.setItem('BLOCKFROST_API_KEY', e.target.value);
   }
 
-  const onLock = () => {
-    lockTx(wallet, blockfrostApiKey)
+  const onLock = () => { console.log(useEmulator, blockfrostApiKey);
+    lockTx(wallet, provider)
       // lock transaction created successfully
-      .then(txHash => toast({
-        title: `lock tx submitted: https://preprod.cardanoscan.io/transaction/${txHash}`,
-        status: "success"
-      }))
+      .then(txHash => {
+        toast({
+          title: `lock tx submitted ${useEmulator ? `${txHash}` : `https://preprod.cardanoscan.io/transaction/${txHash}`}`,
+          status: "success"
+        })
+        if (useEmulator && provider && typeof provider !== "string" && "awaitBlock" in provider) {
+          provider.awaitBlock(1)
+        }
+      })
       // lock transaction failed
       .catch(e => {
         toast({
@@ -53,12 +90,17 @@ export default function Home() {
   }
 
   const onUnlock = () => {
-    unlockTx(wallet, blockfrostApiKey)
+    unlockTx(wallet, provider)
       // unlock transaction created successfully
-      .then(txHash => toast({
-        title: `unlock tx submitted: https://preprod.cardanoscan.io/transaction/${txHash}`,
-        status: "success"
-      }))
+      .then(txHash => {
+        toast({
+          title: `unlock tx submitted ${useEmulator ? `${txHash}` : `: https://preprod.cardanoscan.io/transaction/${txHash}`}`,
+          status: "success"
+        })
+        if (useEmulator && provider && typeof provider !== "string" && "awaitBlock" in provider) {
+          provider.awaitBlock(1)
+        }
+      })
       // unlock transaction failed
       .catch(e => {
         toast({
@@ -72,25 +114,27 @@ export default function Home() {
   return (
     <div className={style.root}>
       <Container maxW="container.sm" py={12} centerContent>
-        <Box bg="white" w="100%" p={4} mb={4}>
-          <Text fontSize="md" mb={4}>
-            In order to run this example you need to provide a Blockfrost API Key<br />
-            More info on <a href="https://blockfrost.io/" target="_blank" style={{color:'#0BC5EA'}}>blockfrost.io</a>
-          </Text>
-          <Input
-            variant='filled'
-            placeholder='Blockfrost API Key'
-            size='lg'
-            value={blockfrostApiKey}
-            onChange={onChangeBlockfrostApiKey}
-          />
-        </Box>
+        {!useEmulator && ( <>
+          <Box bg="white" w="100%" p={4} mb={4}>
+            <Text fontSize="md" mb={4}>
+              In order to run this example you need to provide a Blockfrost API Key<br />
+              More info on <a href="https://blockfrost.io/" target="_blank" style={{color:'#0BC5EA'}}>blockfrost.io</a>
+            </Text>
+            <Input
+              variant='filled'
+              placeholder='Blockfrost API Key'
+              size='lg'
+              value={blockfrostApiKey}
+              onChange={onChangeBlockfrostApiKey}
+            />
+          </Box>
+        </>)}
         <Box bg="white" w="100%" p={4}>
-          <ConnectionHandler isDisabled={blockfrostApiKey === ''} />
-          {connected && (
+          <ConnectionHandler isDisabled={useEmulator ? false : blockfrostApiKey === ''} />
+          {(connected || useEmulator) && (
             <>
-              <Button size="lg" ml={4} colorScheme="teal" isDisabled={blockfrostApiKey === ''} onClick={onLock}>Lock 10 tADA</Button>
-              <Button size="lg" ml={4} colorScheme="teal" isDisabled={blockfrostApiKey === ''} onClick={onUnlock}>Unlock</Button>
+              <Button size="lg" ml={4} colorScheme="teal" isDisabled={useEmulator ? false : blockfrostApiKey === ''} onClick={onLock}>Lock 10 tADA</Button>
+              <Button size="lg" ml={4} colorScheme="teal" isDisabled={useEmulator ? false : blockfrostApiKey === ''} onClick={onUnlock}>Unlock</Button>
             </>
           )}
         </Box>
