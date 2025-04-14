@@ -725,8 +725,7 @@ export class Emulator implements ITxRunnerProvider, IGetGenesisInfos, IGetProtoc
         }
 
         // Add the outputs to the ledger
-        for (let index = 0; index < tx.body.outputs.length; index++) {
-            const output = tx.body.outputs[index];
+        tx.body.outputs.forEach((output, index) => {
 
             // Create a UTxO from the output
             const utxo = new UTxO({
@@ -738,7 +737,10 @@ export class Emulator implements ITxRunnerProvider, IGetGenesisInfos, IGetProtoc
             });
             this.debug(2, `Adding output ${utxo.utxoRef.toString()} to ledger`);
             this.addUtxoToLedger(utxo);
-        }
+        });
+
+        // Log the updated UTxO set
+        console.log("Updated UTxO Set:", this.utxos);
 
         // Process withdrawals
         // Note: We're not really putting rewards in the accounts so far so need to fix that. TODO

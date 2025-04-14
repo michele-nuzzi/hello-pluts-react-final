@@ -1,6 +1,7 @@
 import { useState, useEffect, ChangeEvent } from "react";
 import { Container, Box, Text, Button, Input, useToast } from "@chakra-ui/react";
 import { useNetwork, useWallet } from "@meshsdk/react";
+import { toPlutsUtxo } from "@/offchain/mesh-utils";
 
 import style from "@/styles/Home.module.css";
 import ConnectionHandler from "@/components/ConnectionHandler";
@@ -8,9 +9,8 @@ import { lockTx } from "@/offchain/lockTx";
 import { unlockTx } from "@/offchain/unlockTx";
 import { Address } from "@harmoniclabs/plu-ts";
 
-import { initializeEmulator } from "package/utils/helper";
-import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
-import { Emulator } from "package";
+import { initializeEmulatorWithWalletAddress } from "package/utils/helper";
+import { Emulator } from "../../package";
 
 export default function Home() {
   const [useEmulator, setUseEmulator] = useState(false);
@@ -27,20 +27,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    console.log(useEmulator, process.env.NEXT_PUBLIC_EMULATOR)
-  }, [useEmulator])
-
-  useEffect(() => {
     if (!wallet) return;
 
     if (useEmulator && wallet && connected) {
       (async() => {
-        // Initialize emulator with the wallet's address
+        // Initialize emulator with the Browser-Wallet's address
         const walletAddress = Address.fromString(await wallet.getChangeAddress()); // Assuming `wallet.address` is a string
-        const addressBalances = new Map<Address, bigint>();
-        addressBalances.set(walletAddress, 15_000_000n); // Fund the wallet with 15 ADA
-
-        const emulator = initializeEmulator(addressBalances);
+        const walletUtxOs = (await wallet.getUtxos()).map(toPlutsUtxo); // retrieve utxos from the wallet
+        const emulator = initializeEmulatorWithWalletAddress(walletAddress, walletUtxOs);
         setProvider(emulator);
       })()
     } else {
@@ -67,7 +61,7 @@ export default function Home() {
     window.localStorage.setItem('BLOCKFROST_API_KEY', e.target.value);
   }
 
-  const onLock = () => { console.log(useEmulator, blockfrostApiKey);
+  const onLock = () => { 
     lockTx(wallet, provider)
       // lock transaction created successfully
       .then(txHash => {

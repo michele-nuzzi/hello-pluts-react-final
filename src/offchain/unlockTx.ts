@@ -5,7 +5,7 @@ import { BrowserWallet, IWallet } from "@meshsdk/core";
 import { script, scriptTestnetAddr } from "../../contracts/helloPluts";
 import { toPlutsUtxo } from "./mesh-utils";
 import getTxBuilder from "./getTxBuilder";
-import { Emulator } from "package";
+import { Emulator } from "../../package";
 
 export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator): Promise<Tx> {
   const txBuilder = await getTxBuilder(provider);
@@ -69,16 +69,16 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
 }
 
 export async function unlockTx(wallet: IWallet | BrowserWallet, arg: Emulator | string | null): Promise<string> {
-  let provider: Emulator | BlockfrostPluts;
   if (!arg) {
     throw new Error("Cannot proceed without a Emulator or Blockfrost provider");
   }
-  else if (typeof arg === 'string') {
+
+  let provider: Emulator | BlockfrostPluts;
+  if (typeof arg === 'string') {
     provider = new BlockfrostPluts({ projectId: arg });
   } else { // Emulator
     provider = arg;
   }
-
   
   const unsingedTx = await getUnlockTx(wallet, provider);
 
@@ -87,10 +87,13 @@ export async function unlockTx(wallet: IWallet | BrowserWallet, arg: Emulator | 
     true // partial sign because we have smart contracts in the transaction
   );
 
-  const txWit = Tx.fromCbor(txStr).witnesses.vkeyWitnesses ?? [];
-  for (const wit of txWit) {
-    unsingedTx.addVKeyWitness(wit);
+  const txWitnesses = Tx.fromCbor(txStr).witnesses.vkeyWitnesses ?? [];
+  for (const witness of txWitnesses) {
+    unsingedTx.addVKeyWitness(witness);
   }
 
-  return await provider.submitTx(unsingedTx);
+  const txHash = await provider.submitTx(unsingedTx);
+  console.log("Transaction Hash:", txHash);
+
+  return txHash;
 }
