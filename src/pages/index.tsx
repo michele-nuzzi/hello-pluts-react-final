@@ -9,7 +9,7 @@ import { lockTx } from "@/offchain/lockTx";
 import { unlockTx } from "@/offchain/unlockTx";
 import { Address } from "@harmoniclabs/plu-ts";
 
-import { initializeEmulatorWithWalletAddress } from "package/utils/helper";
+import { initializeEmulatorWithWalletUtxOs } from "../../package/utils/helper";
 import { Emulator } from "../../package";
 
 export default function Home() {
@@ -32,9 +32,8 @@ export default function Home() {
     if (useEmulator && wallet && connected) {
       (async() => {
         // Initialize emulator with the Browser-Wallet's address
-        const walletAddress = Address.fromString(await wallet.getChangeAddress()); // Assuming `wallet.address` is a string
         const walletUtxOs = (await wallet.getUtxos()).map(toPlutsUtxo); // retrieve utxos from the wallet
-        const emulator = initializeEmulatorWithWalletAddress(walletAddress, walletUtxOs);
+        const emulator = initializeEmulatorWithWalletUtxOs(walletUtxOs);
         setProvider(emulator);
       })()
     } else {
