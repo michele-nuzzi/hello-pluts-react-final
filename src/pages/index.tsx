@@ -1,7 +1,6 @@
 import { useState, useEffect, ChangeEvent } from "react";
 import { Container, Box, Text, Button, Input, useToast } from "@chakra-ui/react";
 import { useNetwork, useWallet } from "@meshsdk/react";
-import { toPlutsUtxo } from "@/offchain/mesh-utils";
 
 import style from "@/styles/Home.module.css";
 import ConnectionHandler from "@/components/ConnectionHandler";
@@ -9,8 +8,12 @@ import { lockTx } from "@/offchain/lockTx";
 import { unlockTx } from "@/offchain/unlockTx";
 import { Address } from "@harmoniclabs/plu-ts";
 
-import { initializeEmulatorWithWalletUtxOs } from "../../package/utils/helper";
+import { initializeEmulator } from "../../package/utils/helper";
 import { Emulator } from "../../package";
+
+import { initializeEmulatorWithWalletUtxOs } from "../../package/utils/helper";
+import { toPlutsUtxo } from "@/offchain/mesh-utils";
+
 
 export default function Home() {
   const [useEmulator, setUseEmulator] = useState(false);
@@ -29,14 +32,23 @@ export default function Home() {
   useEffect(() => {
     if (!wallet) return;
 
-    if (useEmulator && wallet && connected) {
-      (async() => {
-        // Initialize emulator with the Browser-Wallet's address
-        const walletUtxOs = (await wallet.getUtxos()).map(toPlutsUtxo); // retrieve utxos from the wallet
-        const emulator = initializeEmulatorWithWalletUtxOs(walletUtxOs);
-        setProvider(emulator);
-      })()
-    } else {
+    if (useEmulator) {
+      if (wallet && connected) {
+        (async() => {
+          const walletAddress = Address.fromString(await wallet.getChangeAddress()); // Assuming `wallet.address` is a string
+          // Initialize emulator with UTxOs directly, not using the faucet
+          const addressBalances = new Map<Address, bigint>();
+          addressBalances.set(walletAddress, 15_000_000n);
+          const emulator = initializeEmulator(addressBalances);
+          
+          // Initialize emulator with the Browser-Wallet's address
+          // const walletUtxOs = (await wallet.getUtxos()).map(toPlutsUtxo); // retrieve utxos from the wallet
+          // const emulator = initializeEmulatorWithWalletUtxOs(walletUtxOs);
+          
+          setProvider(emulator);
+        })()
+      }
+    } else if (blockfrostApiKey) {
       setProvider(blockfrostApiKey);
     }
   }, [wallet, connected, useEmulator, blockfrostApiKey]);
@@ -61,7 +73,7 @@ export default function Home() {
   }
 
   const onLock = () => { 
-    lockTx(wallet, provider)
+    lockTx(wallet, provider, useEmulator)
       // lock transaction created successfully
       .then(txHash => {
         toast({
@@ -83,7 +95,7 @@ export default function Home() {
   }
 
   const onUnlock = () => {
-    unlockTx(wallet, provider)
+    unlockTx(wallet, provider, useEmulator)
       // unlock transaction created successfully
       .then(txHash => {
         toast({

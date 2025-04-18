@@ -1,12 +1,12 @@
 import { Value, DataB, Address, Tx, forceTxOutRefStr } from "@harmoniclabs/plu-ts";
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
-import { BrowserWallet, IWallet } from "@meshsdk/core";
+import { BrowserWallet, IWallet, UTxO } from "@meshsdk/core";
 import { scriptTestnetAddr } from "../../contracts/helloPluts";
 import { toPlutsUtxo } from "./mesh-utils";
 import getTxBuilder from "./getTxBuilder";
 import { Emulator } from "../../package";
 
-export async function getLockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator): Promise<Tx> {
+export async function getLockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
   // creates an address form the bech32 form
   const myAddr = Address.fromString(
     await wallet.getChangeAddress()
@@ -14,7 +14,13 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
 
   const txBuilder = await getTxBuilder(provider);
   
-  const myUTxOs = (await wallet.getUtxos()).map(toPlutsUtxo);
+  let myUTxOs;
+  
+  if (isEmulator) {
+    myUTxOs = await provider.addressUtxos(myAddr);
+  } else {
+    myUTxOs = (await wallet.getUtxos()).map(toPlutsUtxo);
+  }
 
   if (myUTxOs.length === 0) {
     throw new Error("have you requested funds from the faucet?");
@@ -44,7 +50,7 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
   });
 }
 
-export async function lockTx(wallet: IWallet | BrowserWallet, arg: Emulator | string | null): Promise<string> {
+export async function lockTx(wallet: IWallet | BrowserWallet, arg: Emulator | string | null, isEmulator: boolean): Promise<string> {
   if (!arg) {
     throw new Error("Cannot proceed without a Emulator or Blockfrost provider");
   }
@@ -56,9 +62,9 @@ export async function lockTx(wallet: IWallet | BrowserWallet, arg: Emulator | st
     provider = arg;
   }
   
-  const unsignedTx = await getLockTx(wallet, provider);
+  const unsignedTx = await getLockTx(wallet, provider, isEmulator);
   
-  const txStr = await wallet.signTx(unsignedTx.toCbor().toString());
+  const txStr = await wallet.signTx(unsignedTx.toCbor().toString(), true);
 
   const txHash = await provider.submitTx(txStr);
   console.log("Transaction Hash:", txHash);

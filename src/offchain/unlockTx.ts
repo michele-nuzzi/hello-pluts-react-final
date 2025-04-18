@@ -7,10 +7,19 @@ import { toPlutsUtxo } from "./mesh-utils";
 import getTxBuilder from "./getTxBuilder";
 import { Emulator } from "../../package";
 
-export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator): Promise<Tx> {
+export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
   const txBuilder = await getTxBuilder(provider);
   const myAddrs = (await wallet.getUsedAddresses()).map(Address.fromString);
-  const myUTxOs = (await wallet.getUtxos()).map(toPlutsUtxo);
+
+  const walletAddress = Address.fromString(await wallet.getChangeAddress());
+
+  let myUTxOs;
+  
+  if (isEmulator) {
+    myUTxOs = await provider.addressUtxos(walletAddress);
+  } else {
+    myUTxOs = (await wallet.getUtxos()).map(toPlutsUtxo);
+  }
 
   /**
    * Wallets might have multiple addresses;
@@ -27,18 +36,22 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
 
     // datum is inline and is only bytes
     if (isData(datum) && datum instanceof DataB) {
-      const pkh = datum.bytes.toBuffer();
+      if (isEmulator) {
+        myAddr = walletAddress;
+      } else {
+        const pkh = datum.bytes.toBuffer();
 
-      // search if it corresponds to one of my public keys
-      const myPkhIdx = myAddrs.findIndex(
-        addr => uint8ArrayEq(pkh, addr.paymentCreds.hash.toBuffer())
-      );
+        // search if it corresponds to one of my public keys
+        const myPkhIdx = myAddrs.findIndex(
+          addr => uint8ArrayEq(pkh, addr.paymentCreds.hash.toBuffer())
+        );
 
-      // not a pkh of mine; not an utxo I can unlock
-      if (myPkhIdx < 0) return false;
+        // not a pkh of mine; not an utxo I can unlock
+        if (myPkhIdx < 0) return false;
 
-      // else found my locked utxo
-      myAddr = myAddrs[myPkhIdx];
+        // else found my locked utxo
+        myAddr = myAddrs[myPkhIdx];
+      }
 
       return true;
     }
@@ -47,7 +60,7 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
   });
 
   if (utxoToSpend === undefined) {
-    throw new Error("Opsie, are you sure your tx had enough time to get to the blockchain?");
+    throw new Error("Oops, are you sure your tx had enough time to get to the blockchain?");
   }
 
   return txBuilder.buildSync({
@@ -68,7 +81,7 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
   });
 }
 
-export async function unlockTx(wallet: IWallet | BrowserWallet, arg: Emulator | string | null): Promise<string> {
+export async function unlockTx(wallet: IWallet | BrowserWallet, arg: Emulator | string | null, isEmulator: boolean): Promise<string> {
   if (!arg) {
     throw new Error("Cannot proceed without a Emulator or Blockfrost provider");
   }
@@ -80,7 +93,7 @@ export async function unlockTx(wallet: IWallet | BrowserWallet, arg: Emulator | 
     provider = arg;
   }
   
-  const unsingedTx = await getUnlockTx(wallet, provider);
+  const unsingedTx = await getUnlockTx(wallet, provider, isEmulator);
 
   const txStr = await wallet.signTx(
     unsingedTx.toCbor().toString(),
