@@ -6,6 +6,7 @@ import { script, scriptTestnetAddr } from "../../contracts/helloPluts";
 import { toPlutsUtxo } from "./mesh-utils";
 import getTxBuilder from "./getTxBuilder";
 import { Emulator } from "../../package";
+import { vkeyWitnessFromSignData } from "./commons";
 
 export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
   const txBuilder = await getTxBuilder(provider);
@@ -13,13 +14,20 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
 
   const walletAddress = Address.fromString(await wallet.getChangeAddress());
 
-  let myUTxOs;
-  
-  if (isEmulator) {
-    myUTxOs = await provider.addressUtxos(walletAddress);
-  } else {
-    myUTxOs = (await wallet.getUtxos()).map(toPlutsUtxo);
+  const utxosOrMap = await provider.getUtxos(walletAddress);
+  let utxos = utxosOrMap;
+
+  if (Array.isArray(utxosOrMap)) { // Blockfrost case
+    if (utxosOrMap.length === 0) {
+      throw new Error("Have you requested funds from the faucet?");
+    }
+    utxos = utxosOrMap;
   }
+  else { // Emulator case
+    utxos = Array.from(utxosOrMap.values())
+  }
+
+  let myAddr!: Address;
 
   /**
    * Wallets might have multiple addresses;
@@ -28,30 +36,25 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
    * we'll get the address based on the utxo that keeps one of ours
    * public key hash as datum
   **/
-  let myAddr!: Address;
 
-  // only the onses with valid datum
+  // reassign utxoToSpend with only the responses with valid datum
   const utxoToSpend = (await provider.addressUtxos(scriptTestnetAddr)).find(utxo => {
     const datum = utxo.resolved.datum;
 
     // datum is inline and is only bytes
     if (isData(datum) && datum instanceof DataB) {
-      if (isEmulator) {
-        myAddr = walletAddress;
-      } else {
-        const pkh = datum.bytes.toBuffer();
+      const pkh = datum.bytes.toBuffer();
 
-        // search if it corresponds to one of my public keys
-        const myPkhIdx = myAddrs.findIndex(
-          addr => uint8ArrayEq(pkh, addr.paymentCreds.hash.toBuffer())
-        );
+      // search if it corresponds to one of my public keys
+      const myPkhIdx = myAddrs.findIndex(
+        addr => uint8ArrayEq(pkh, addr.paymentCreds.hash.toBuffer())
+      );
 
-        // not a pkh of mine; not an utxo I can unlock
-        if (myPkhIdx < 0) return false;
+      // not a pkh of mine; not an utxo I can unlock
+      if (myPkhIdx < 0) return false;
 
-        // else found my locked utxo
-        myAddr = myAddrs[myPkhIdx];
-      }
+      // else found my locked utxo
+      myAddr = myAddrs[myPkhIdx];
 
       return true;
     }
@@ -75,7 +78,7 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
     }],
     requiredSigners: [myAddr.paymentCreds.hash],
     // make sure to include collateral when using contracts
-    collaterals: [myUTxOs[0]],
+    collaterals: [utxos[0]],
     // send everything back to us
     changeAddress: myAddr
   });
@@ -86,27 +89,42 @@ export async function unlockTx(wallet: IWallet | BrowserWallet, arg: Emulator | 
     throw new Error("Cannot proceed without a Emulator or Blockfrost provider");
   }
 
+  const myAddr = Address.fromString(await wallet.getChangeAddress());
+
   let provider: Emulator | BlockfrostPluts;
   if (typeof arg === 'string') {
     provider = new BlockfrostPluts({ projectId: arg });
   } else { // Emulator
     provider = arg;
   }
-  
-  const unsingedTx = await getUnlockTx(wallet, provider, isEmulator);
 
-  const txStr = await wallet.signTx(
-    unsingedTx.toCbor().toString(),
-    true // partial sign because we have smart contracts in the transaction
-  );
+  console.log("About to unlock tx");
+  const unsignedTx = await getUnlockTx(wallet, provider, isEmulator);
 
-  const txWitnesses = Tx.fromCbor(txStr).witnesses.vkeyWitnesses ?? [];
-  for (const witness of txWitnesses) {
-    unsingedTx.addVKeyWitness(witness);
-  }
+  // const txStr = await wallet.signTx(
+  //   unsingedTx.toCbor().toString(),
+  //   true // partial sign because we have smart contracts in the transaction
+  // );
 
-  const txHash = await provider.submitTx(unsingedTx);
+// Sign the tx body hash
+  const txHashHex = unsignedTx.body.hash.toString();
+  // Build the witness set data
+  const {key, signature} = await wallet.signData(txHashHex, myAddr.toString());
+  // const txWitnesses = Tx.fromCbor(txStr).witnesses.vkeyWitnesses ?? [];
+  const witness = vkeyWitnessFromSignData(key, signature);
+
+  // for (const witness of txWitnesses) {
+  unsignedTx.addVKeyWitness(witness);
+  // }
+
+  const txHash = await provider.submitTx(unsignedTx);
   console.log("Transaction Hash:", txHash);
+
+  if ("awaitBlock" in provider && "prettyPrintLedgerState in provider") { // emulator
+    provider.awaitBlock(1);
+    const ledgerState = provider.prettyPrintLedgerState();
+    console.log("Ledger State:", ledgerState);
+  }
 
   return txHash;
 }

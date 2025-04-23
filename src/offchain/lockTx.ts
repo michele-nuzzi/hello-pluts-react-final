@@ -5,6 +5,7 @@ import { scriptTestnetAddr } from "../../contracts/helloPluts";
 import { toPlutsUtxo } from "./mesh-utils";
 import getTxBuilder from "./getTxBuilder";
 import { Emulator } from "../../package";
+import { vkeyWitnessFromSignData } from "./commons";
 
 export async function getLockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
   // creates an address form the bech32 form
@@ -13,22 +14,23 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
   );
 
   const txBuilder = await getTxBuilder(provider);
-  
-  let myUTxOs;
-  
-  if (isEmulator) {
-    myUTxOs = await provider.addressUtxos(myAddr);
-  } else {
-    myUTxOs = (await wallet.getUtxos()).map(toPlutsUtxo);
+
+  const utxosOrMap = await provider.getUtxos(myAddr);
+  let utxos = utxosOrMap;
+
+  if (Array.isArray(utxosOrMap)) { // Blockfrost case
+    if (utxosOrMap.length === 0) {
+      throw new Error("Have you requested funds from the faucet?");
+    }
+    utxos = utxosOrMap;
+  }
+  else { // Emulator case
+    utxos = Array.from(utxosOrMap.values())
   }
 
-  if (myUTxOs.length === 0) {
-    throw new Error("have you requested funds from the faucet?");
-  }
+  const utxo = utxos.find(u => u.resolved.value.lovelaces >= 15_000_000n);
 
-  const utxo = myUTxOs.find(u => u.resolved.value.lovelaces >= 15_000_000);
-
-  if (utxo === undefined) {
+  if (!utxo) {
     throw new Error("not enough ada");
   }
 
@@ -38,7 +40,7 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
       address: scriptTestnetAddr,
       // 10M lovelaces === 10 ADA
       value: Value.lovelaces(10_000_000),
-      // remeber to include a datum
+      // remember to include a datum
       datum: new DataB(
         // remember we set the datum to be the public key hash?
         // we can extract it from the address as follows
@@ -55,6 +57,8 @@ export async function lockTx(wallet: IWallet | BrowserWallet, arg: Emulator | st
     throw new Error("Cannot proceed without a Emulator or Blockfrost provider");
   }
 
+  const myAddr = Address.fromString(await wallet.getChangeAddress());
+
   let provider: BlockfrostPluts | Emulator;
   if (typeof arg === 'string') {
     provider = new BlockfrostPluts({ projectId: arg });
@@ -62,12 +66,27 @@ export async function lockTx(wallet: IWallet | BrowserWallet, arg: Emulator | st
     provider = arg;
   }
   
+  console.log("About to get lock tx");
   const unsignedTx = await getLockTx(wallet, provider, isEmulator);
+  console.log("Unsigned Tx:", unsignedTx.toJson());
   
-  const txStr = await wallet.signTx(unsignedTx.toCbor().toString(), true);
+  // Sign the tx body hash
+  const txHashHex = unsignedTx.body.hash.toString();
+  // Build the witness set data
+  const {key, signature} = await wallet.signData(txHashHex, myAddr.toString());
+  const witness = vkeyWitnessFromSignData(key, signature);
 
-  const txHash = await provider.submitTx(txStr);
+  // inject it to the unsigned tx
+  unsignedTx.addVKeyWitness(witness);
+
+  const txHash = await provider.submitTx(unsignedTx);
   console.log("Transaction Hash:", txHash);
+
+  if ("awaitBlock" in provider && "prettyPrintLedgerState in provider") { // emulator
+    provider.awaitBlock(1);
+    const ledgerState = provider.prettyPrintLedgerState();
+    console.log("Ledger State:", ledgerState);
+  }
 
   return txHash;
 

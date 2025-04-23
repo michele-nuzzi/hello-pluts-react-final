@@ -40,11 +40,6 @@ export default function Home() {
           const addressBalances = new Map<Address, bigint>();
           addressBalances.set(walletAddress, 15_000_000n);
           const emulator = initializeEmulator(addressBalances);
-          
-          // Initialize emulator with the Browser-Wallet's address
-          // const walletUtxOs = (await wallet.getUtxos()).map(toPlutsUtxo); // retrieve utxos from the wallet
-          // const emulator = initializeEmulatorWithWalletUtxOs(walletUtxOs);
-          
           setProvider(emulator);
         })()
       }
@@ -59,7 +54,7 @@ export default function Home() {
       <div className={style.root}>
         <Container maxW="container.sm" py={12} centerContent>
           <Box bg="white" w="100%" p={8}>
-            <Text fontSize="xl" mb={6}>Make sure to set your wallet in testnet mode;<br/>We are playing with founds here!</Text>
+            <Text fontSize="xl" mb={6}>Make sure to set your wallet in testnet mode;<br/>We are playing with funds here!</Text>
             <Button size="lg" colorScheme="blue" onClick={() => window.location.reload()}>Refresh page</Button>
           </Box>
         </Container>
@@ -73,6 +68,7 @@ export default function Home() {
   }
 
   const onLock = () => { 
+    console.log("lockTx", wallet, provider);
     lockTx(wallet, provider, useEmulator)
       // lock transaction created successfully
       .then(txHash => {
@@ -95,6 +91,7 @@ export default function Home() {
   }
 
   const onUnlock = () => {
+    console.log("lockTx", wallet, provider);
     unlockTx(wallet, provider, useEmulator)
       // unlock transaction created successfully
       .then(txHash => {
