@@ -8,17 +8,16 @@ import { lockTx } from "@/offchain/lockTx";
 import { unlockTx } from "@/offchain/unlockTx";
 import { Address } from "@harmoniclabs/plu-ts";
 
-import { initializeEmulator } from "../../package/utils/helper";
-import { Emulator } from "../../package";
+import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
 
-import { initializeEmulatorWithWalletUtxOs } from "../../package/utils/helper";
-import { toPlutsUtxo } from "@/offchain/mesh-utils";
+import { Emulator, initializeEmulator } from "../../package";
+
 
 
 export default function Home() {
   const [useEmulator, setUseEmulator] = useState(false);
   const [blockfrostApiKey, setBlockfrostApiKey] = useState<string>('');
-  const [provider, setProvider] = useState<Emulator | string | null>(null);
+  const [provider, setProvider] = useState<Emulator | BlockfrostPluts | null>(null);
   const {wallet, connected} = useWallet();
   const network = useNetwork();
   const toast = useToast();
@@ -35,7 +34,14 @@ export default function Home() {
     if (useEmulator) {
       if (wallet && connected) {
         (async() => {
-          const walletAddress = Address.fromString(await wallet.getChangeAddress()); // Assuming `wallet.address` is a string
+          const changeAddress = await wallet.getChangeAddress();
+          // Verify that the returned value is a string
+          if (typeof changeAddress !== "string") {
+            throw new Error("Invalid address: Expected a string from wallet.getChangeAddress()");
+          }
+          // Convert the string to an Address object
+          const walletAddress = Address.fromString(changeAddress);
+
           // Initialize emulator with UTxOs directly, not using the faucet
           const addressBalances = new Map<Address, bigint>();
           addressBalances.set(walletAddress, 15_000_000n);
@@ -44,7 +50,8 @@ export default function Home() {
         })()
       }
     } else if (blockfrostApiKey) {
-      setProvider(blockfrostApiKey);
+      const provider = new BlockfrostPluts({ projectId: blockfrostApiKey });
+      setProvider(provider);
     }
   }, [wallet, connected, useEmulator, blockfrostApiKey]);
 
@@ -106,7 +113,7 @@ export default function Home() {
       // unlock transaction failed
       .catch(e => {
         toast({
-          title: "something went wrong: " + e?.messge ,
+          title: "something went wrong: " + e?.message ,
           status: "error"
         });
         console.error(e);

@@ -40,23 +40,5 @@ export default async function getTxBuilder(provider: BlockfrostPluts | Emulator)
       );
     }
   }
-  // if (!(_cachedTxBuilder instanceof TxBuilder)) {
-  //   const parameters = await provider.getProtocolParameters();
-
-    // (window as any).a = parameters.costModels.PlutusScriptV3;
-    // (window as any).b = parameters; 
-    // (window as any).e = (parameters as any).cost_models_raw.PlutusV3;
-    // (window as any).f = toCostModelArrV3(
-    //   parameters.costModels.PlutusScriptV3!
-    // );
-
-    // _cachedTxBuilder = new TxBuilder(parameters);
-
-    // (window as any).c = _cachedTxBuilder.protocolParamters.costModels.PlutusScriptV3;
-    // (window as any).d = toCostModelArrV3(
-    //   _cachedTxBuilder.protocolParamters.costModels.PlutusScriptV3!
-    // );
-
-  // }
   return _cachedTxBuilder;
 }

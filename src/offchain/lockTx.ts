@@ -52,20 +52,13 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
   });
 }
 
-export async function lockTx(wallet: IWallet | BrowserWallet, arg: Emulator | string | null, isEmulator: boolean): Promise<string> {
-  if (!arg) {
+export async function lockTx(wallet: IWallet | BrowserWallet, provider: Emulator | BlockfrostPluts | null, isEmulator: boolean): Promise<string> {
+  if (!provider) {
     throw new Error("Cannot proceed without a Emulator or Blockfrost provider");
   }
 
   const myAddr = Address.fromString(await wallet.getChangeAddress());
 
-  let provider: BlockfrostPluts | Emulator;
-  if (typeof arg === 'string') {
-    provider = new BlockfrostPluts({ projectId: arg });
-  } else { // Emulator
-    provider = arg;
-  }
-  
   console.log("About to get lock tx");
   const unsignedTx = await getLockTx(wallet, provider, isEmulator);
   console.log("Unsigned Tx:", unsignedTx.toJson());
@@ -82,7 +75,7 @@ export async function lockTx(wallet: IWallet | BrowserWallet, arg: Emulator | st
   const txHash = await provider.submitTx(unsignedTx);
   console.log("Transaction Hash:", txHash);
 
-  if ("awaitBlock" in provider && "prettyPrintLedgerState in provider") { // emulator
+  if ("awaitBlock" in provider && "prettyPrintLedgerState" in provider) { // emulator
     provider.awaitBlock(1);
     const ledgerState = provider.prettyPrintLedgerState();
     console.log("Ledger State:", ledgerState);

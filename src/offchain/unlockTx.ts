@@ -63,7 +63,10 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
   });
 
   if (utxoToSpend === undefined) {
-    throw new Error("Oops, are you sure your tx had enough time to get to the blockchain?");
+    const errorMessage = isEmulator ? 
+      "Oops, are you sure you invoked awaitBlock on emulator to ensure the tx was included in a block?" : 
+      "Oops, are you sure your tx had enough time to get to the blockchain?";
+    throw new Error(errorMessage);
   }
 
   return txBuilder.buildSync({
@@ -84,43 +87,28 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
   });
 }
 
-export async function unlockTx(wallet: IWallet | BrowserWallet, arg: Emulator | string | null, isEmulator: boolean): Promise<string> {
-  if (!arg) {
+export async function unlockTx(wallet: IWallet | BrowserWallet, provider: Emulator | BlockfrostPluts | null, isEmulator: boolean): Promise<string> {
+  if (!provider) {
     throw new Error("Cannot proceed without a Emulator or Blockfrost provider");
   }
 
   const myAddr = Address.fromString(await wallet.getChangeAddress());
 
-  let provider: Emulator | BlockfrostPluts;
-  if (typeof arg === 'string') {
-    provider = new BlockfrostPluts({ projectId: arg });
-  } else { // Emulator
-    provider = arg;
-  }
-
   console.log("About to unlock tx");
   const unsignedTx = await getUnlockTx(wallet, provider, isEmulator);
 
-  // const txStr = await wallet.signTx(
-  //   unsingedTx.toCbor().toString(),
-  //   true // partial sign because we have smart contracts in the transaction
-  // );
-
-// Sign the tx body hash
+  // Sign the tx body hash
   const txHashHex = unsignedTx.body.hash.toString();
   // Build the witness set data
   const {key, signature} = await wallet.signData(txHashHex, myAddr.toString());
-  // const txWitnesses = Tx.fromCbor(txStr).witnesses.vkeyWitnesses ?? [];
   const witness = vkeyWitnessFromSignData(key, signature);
 
-  // for (const witness of txWitnesses) {
   unsignedTx.addVKeyWitness(witness);
-  // }
 
   const txHash = await provider.submitTx(unsignedTx);
   console.log("Transaction Hash:", txHash);
 
-  if ("awaitBlock" in provider && "prettyPrintLedgerState in provider") { // emulator
+  if ("awaitBlock" in provider && "prettyPrintLedgerState" in provider) { // emulator
     provider.awaitBlock(1);
     const ledgerState = provider.prettyPrintLedgerState();
     console.log("Ledger State:", ledgerState);
