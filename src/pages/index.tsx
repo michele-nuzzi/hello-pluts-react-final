@@ -10,7 +10,7 @@ import { Address } from "@harmoniclabs/plu-ts";
 
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
 
-import { Emulator, initializeEmulator } from "../../package";
+import { Emulator, initializeEmulator } from "@harmoniclabs/pluts-emulator";
 
 
 
@@ -75,7 +75,6 @@ export default function Home() {
   }
 
   const onLock = () => { 
-    console.log("lockTx", wallet, provider);
     lockTx(wallet, provider, useEmulator)
       // lock transaction created successfully
       .then(txHash => {
@@ -83,7 +82,7 @@ export default function Home() {
           title: `lock tx submitted ${useEmulator ? `${txHash}` : `https://preprod.cardanoscan.io/transaction/${txHash}`}`,
           status: "success"
         })
-        if (useEmulator && provider && typeof provider !== "string" && "awaitBlock" in provider) {
+        if (useEmulator && provider instanceof Emulator) {
           provider.awaitBlock(1)
         }
       })
@@ -98,7 +97,6 @@ export default function Home() {
   }
 
   const onUnlock = () => {
-    console.log("lockTx", wallet, provider);
     unlockTx(wallet, provider, useEmulator)
       // unlock transaction created successfully
       .then(txHash => {
@@ -106,7 +104,7 @@ export default function Home() {
           title: `unlock tx submitted ${useEmulator ? `${txHash}` : `: https://preprod.cardanoscan.io/transaction/${txHash}`}`,
           status: "success"
         })
-        if (useEmulator && provider && typeof provider !== "string" && "awaitBlock" in provider) {
+        if (useEmulator && provider instanceof Emulator) {
           provider.awaitBlock(1)
         }
       })

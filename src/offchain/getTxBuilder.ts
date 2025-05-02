@@ -1,6 +1,6 @@
 import { TxBuilder, defaultProtocolParameters, toCostModelArrV3 } from "@harmoniclabs/plu-ts";
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
-import { Emulator } from "../../package";
+import { Emulator } from "@harmoniclabs/pluts-emulator";
 
 /**
  * we don't want to do too many API call if we already have our `txBuilder`
