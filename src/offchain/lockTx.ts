@@ -4,7 +4,7 @@ import { BrowserWallet, IWallet, UTxO } from "@meshsdk/core";
 import { scriptTestnetAddr } from "../../contracts/helloPluts";
 import { toPlutsUtxo } from "./mesh-utils";
 import getTxBuilder from "./getTxBuilder";
-import { Emulator } from "../../package";
+import { Emulator } from "@harmoniclabs/pluts-emulator";
 import { vkeyWitnessFromSignData } from "./commons";
 
 export async function getLockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
@@ -66,7 +66,7 @@ export async function lockTx(wallet: IWallet | BrowserWallet, provider: Emulator
   const txHash = await provider.submitTx(unsignedTx);
   console.log("Transaction Hash:", txHash);
 
-  if ("awaitBlock" in provider && "prettyPrintLedgerState" in provider) { // emulator
+  if (provider instanceof Emulator) { // emulator
     provider.awaitBlock(1);
     const ledgerState = provider.prettyPrintLedgerState();
     console.log("Ledger State:", ledgerState);

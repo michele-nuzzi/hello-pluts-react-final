@@ -5,7 +5,7 @@ import { BrowserWallet, IWallet } from "@meshsdk/core";
 import { script, scriptTestnetAddr } from "../../contracts/helloPluts";
 import { toPlutsUtxo } from "./mesh-utils";
 import getTxBuilder from "./getTxBuilder";
-import { Emulator } from "../../package";
+import { Emulator } from "@harmoniclabs/pluts-emulator";
 import { vkeyWitnessFromSignData } from "./commons";
 
 export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
@@ -100,7 +100,7 @@ export async function unlockTx(wallet: IWallet | BrowserWallet, provider: Emulat
   const txHash = await provider.submitTx(unsignedTx);
   console.log("Transaction Hash:", txHash);
 
-  if ("awaitBlock" in provider && "prettyPrintLedgerState" in provider) { // emulator
+  if (provider instanceof Emulator) {
     provider.awaitBlock(1);
     const ledgerState = provider.prettyPrintLedgerState();
     console.log("Ledger State:", ledgerState);
