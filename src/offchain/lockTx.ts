@@ -15,19 +15,10 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
 
   const txBuilder = await getTxBuilder(provider);
 
-  const utxosOrMap = await provider.getUtxos(myAddr);
-  let utxos = utxosOrMap;
-
-  if (Array.isArray(utxosOrMap)) { // Blockfrost case
-    if (utxosOrMap.length === 0) {
-      throw new Error("Have you requested funds from the faucet?");
-    }
-    utxos = utxosOrMap;
-  }
-  else { // Emulator case
-    utxos = Array.from(utxosOrMap.values())
-  }
-
+  const utxos = await provider.getUtxos(myAddr);
+  if (utxos.length === 0) {
+    throw new Error("Have you requested funds from the faucet?");
+  }  
   const utxo = utxos.find(u => u.resolved.value.lovelaces >= 15_000_000n);
 
   if (!utxo) {

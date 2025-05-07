@@ -14,18 +14,10 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
 
   const walletAddress = Address.fromString(await wallet.getChangeAddress());
 
-  const utxosOrMap = await provider.getUtxos(walletAddress);
-  let utxos = utxosOrMap;
-
-  if (Array.isArray(utxosOrMap)) { // Blockfrost case
-    if (utxosOrMap.length === 0) {
-      throw new Error("Have you requested funds from the faucet?");
-    }
-    utxos = utxosOrMap;
-  }
-  else { // Emulator case
-    utxos = Array.from(utxosOrMap.values())
-  }
+  const utxos = await provider.getUtxos(walletAddress);
+  if (utxos.length === 0) {
+    throw new Error("Have you requested funds from the faucet?");
+  }  
 
   let myAddr!: Address;
 
