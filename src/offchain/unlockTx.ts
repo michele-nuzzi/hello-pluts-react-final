@@ -16,7 +16,7 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
 
   const utxos = await provider.getUtxos(walletAddress);
   if (utxos.length === 0) {
-    throw new Error(isEmulator ? "Funds not populated to address via Emulator while initialization" : "Have you requested funds from the faucet?");
+    throw new Error(isEmulator ? "No UTxOs have been found at this address on the emulated ledger" : "Have you requested funds from the faucet?");
   }  
 
   let myAddr!: Address;
