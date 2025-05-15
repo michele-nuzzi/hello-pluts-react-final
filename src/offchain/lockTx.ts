@@ -17,7 +17,7 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
 
   const utxos = await provider.getUtxos(myAddr);
   if (utxos.length === 0) {
-    throw new Error(isEmulator ? "Funds not populated to address via Emulator while initialization" : "Have you requested funds from the faucet?");
+    throw new Error(isEmulator ? "No UTxOs have been found at this address on the emulated ledger" : "Have you requested funds from the faucet?");
   }  
   const utxo = utxos.find(u => u.resolved.value.lovelaces >= 15_000_000n);
 
