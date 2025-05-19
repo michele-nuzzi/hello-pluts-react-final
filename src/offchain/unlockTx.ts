@@ -1,27 +1,36 @@
 import { Address, isData, DataB, Tx } from "@harmoniclabs/plu-ts";
 import { fromAscii, uint8ArrayEq } from "@harmoniclabs/uint8array-utils";
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
-import { BrowserWallet } from "@meshsdk/core";
+import { BrowserWallet, IWallet } from "@meshsdk/core";
 import { script, scriptTestnetAddr } from "../../contracts/helloPluts";
 import { toPlutsUtxo } from "./mesh-utils";
 import getTxBuilder from "./getTxBuilder";
+import { Emulator } from "@harmoniclabs/pluts-emulator";
+import { vkeyWitnessFromSignData } from "./commons";
 
-async function getUnlockTx(wallet: BrowserWallet, Blockfrost: BlockfrostPluts): Promise<Tx> {
-  const txBuilder = await getTxBuilder(Blockfrost);
+export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
+  const txBuilder = await getTxBuilder(provider);
   const myAddrs = (await wallet.getUsedAddresses()).map(Address.fromString);
-  const myUTxOs = (await wallet.getUtxos()).map(toPlutsUtxo);
+
+  const walletAddress = Address.fromString(await wallet.getChangeAddress());
+
+  const utxos = await provider.getUtxos(walletAddress);
+  if (utxos.length === 0) {
+    throw new Error(isEmulator ? "No UTxOs have been found at this address on the emulated ledger" : "Have you requested funds from the faucet?");
+  }  
+
+  let myAddr!: Address;
 
   /**
-   * Wallets migh have multiple addresses;
+   * Wallets might have multiple addresses;
    * 
    * to understand which one we previously used to lock founds
    * we'll get the address based on the utxo that keeps one of ours
    * public key hash as datum
   **/
-  let myAddr!: Address;
 
-  // only the onses with valid datum
-  const utxoToSpend = (await Blockfrost.addressUtxos(scriptTestnetAddr)).find(utxo => {
+  // reassign utxoToSpend with only the responses with valid datum
+  const utxoToSpend = (await provider.addressUtxos(scriptTestnetAddr)).find(utxo => {
     const datum = utxo.resolved.datum;
 
     // datum is inline and is only bytes
@@ -46,7 +55,10 @@ async function getUnlockTx(wallet: BrowserWallet, Blockfrost: BlockfrostPluts): 
   });
 
   if (utxoToSpend === undefined) {
-    throw new Error("uopsie, are you sure your tx had enough time to get to the blockchain?");
+    const errorMessage = isEmulator ? 
+      "Oops, are you sure you invoked awaitBlock on emulator to ensure the tx was included in a block?" : 
+      "Oops, are you sure your tx had enough time to get to the blockchain?";
+    throw new Error(errorMessage);
   }
 
   return txBuilder.buildSync({
@@ -61,25 +73,38 @@ async function getUnlockTx(wallet: BrowserWallet, Blockfrost: BlockfrostPluts): 
     }],
     requiredSigners: [myAddr.paymentCreds.hash],
     // make sure to include collateral when using contracts
-    collaterals: [myUTxOs[0]],
+    collaterals: [utxos[0]],
     // send everything back to us
     changeAddress: myAddr
   });
 }
 
-export async function unlockTx(wallet: BrowserWallet, projectId: string): Promise<string> {
-  const Blockfrost = new BlockfrostPluts({ projectId });
-  const unsingedTx = await getUnlockTx(wallet, Blockfrost);
-
-  const txStr = await wallet.signTx(
-    unsingedTx.toCbor().toString(),
-    true // partial sign because we have smart contracts in the transaction
-  );
-
-  const txWit = Tx.fromCbor(txStr).witnesses.vkeyWitnesses ?? [];
-  for (const wit of txWit) {
-    unsingedTx.addVKeyWitness(wit);
+export async function unlockTx(wallet: IWallet | BrowserWallet, provider: Emulator | BlockfrostPluts | null, isEmulator: boolean): Promise<string> {
+  if (!provider) {
+    throw new Error("Cannot proceed without a Emulator or Blockfrost provider");
   }
 
-  return await Blockfrost.submitTx(unsingedTx);
+  const myAddr = Address.fromString(await wallet.getChangeAddress());
+
+  console.log("About to unlock tx");
+  const unsignedTx = await getUnlockTx(wallet, provider, isEmulator);
+
+  // Sign the tx body hash
+  const txHashHex = unsignedTx.body.hash.toString();
+  // Build the witness set data
+  const {key, signature} = await wallet.signData(txHashHex, myAddr.toString());
+  const witness = vkeyWitnessFromSignData(key, signature);
+
+  unsignedTx.addVKeyWitness(witness);
+
+  const txHash = await provider.submitTx(unsignedTx);
+  console.log("Transaction Hash:", txHash);
+
+  if (provider instanceof Emulator) {
+    provider.awaitBlock(1);
+    const ledgerState = provider.prettyPrintLedgerState();
+    console.log("Ledger State:", ledgerState);
+  }
+
+  return txHash;
 }
