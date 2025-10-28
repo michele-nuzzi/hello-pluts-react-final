@@ -1,12 +1,8 @@
-import fs from 'fs';
-import { Compiler, defaultUplcVersion } from '@harmoniclabs/pebble';
-import { VKeyWitness, Hash32, Data, Signature, IUTxO, Value, dataFromJson, Script, ScriptType, Address, Credential } from "@harmoniclabs/buildooor";
+import { VKeyWitness, Hash32, Data, Signature, IUTxO, Value, dataFromJson, Script } from "@harmoniclabs/buildooor";
 import { CborArray, CborBytes } from "@harmoniclabs/cbor";
 import { UTxO, Hash32 as LedgerHash32 } from "@harmoniclabs/cardano-ledger-ts";
 import { Data as LedgerData } from "@harmoniclabs/plutus-data";
 import { decode } from "cbor";
-
-const CONTRACT = 'contracts/hello-world.pebble';
 
 /**
  * Converts a hexadecimal string to a `Uint8Array` of bytes.
@@ -119,56 +115,4 @@ export function ledgerUtxoToBuilderUtxo(utxo: UTxO): IUTxO {
       refScript: utxo.resolved.refScript ? Script.fromCbor(utxo.resolved.refScript.toCbor()) : undefined
     }
   };
-}
-
-async function compileContract(path: string): Promise<Uint8Array> {
-  const compiler = new Compiler(
-    {
-      stdout: process.stdout,
-      stderr: process.stderr,
-      readFile: (filename: string, baseDir: string) => fs.readFileSync(`${baseDir}/${filename}`, 'utf8'),
-      writeFile: (filename: string, contents: Uint8Array | string, baseDir: string) => fs.writeFileSync(`${baseDir}/${filename}`, contents),
-      exsistSync: (filename: string) => fs.existsSync(filename),
-      listFiles: (dirname: string, baseDir: string) => fs.readdirSync(`${baseDir}/${dirname}`),
-      reportDiagnostic: () => {},
-    },
-    {
-      root: '.',
-      entry: CONTRACT,
-      outDir: 'conracts',
-      targetUplcVersion: defaultUplcVersion,
-      removeTraces: false,
-      delayHoists: false,
-      uplcOptimizations: {},
-      addMarker: false,
-      silent: false,
-    }
-  );
-
-  const program = await compiler.compile();
-
-  return new Uint8Array(fs.readFileSync('contracts/out.flat'));
-}
-
-function getScript(bytes: Uint8Array): Script {
-  return new Script(ScriptType.PlutusV3, bytes);
-}
-
-function getScriptTestnetAddr(script: Script): Address {
-  return new Address({
-    network: 'testnet',
-    paymentCreds: Credential.script(script.hash),
-  });
-}
-
-export interface CompiledContract {
-  script: Script;
-  testnetAddress: Address;
-}
-
-export async function loadContract(): Promise<CompiledContract> {
-  const bytes = await compileContract(CONTRACT);
-  const script = getScript(bytes);
-  const testnetAddress = getScriptTestnetAddr(script);
-  return { script, testnetAddress };
 }

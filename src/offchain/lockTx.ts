@@ -4,7 +4,8 @@ import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
 import { BrowserWallet, IWallet } from "@meshsdk/core";
 import { Emulator } from "@harmoniclabs/pluts-emulator";
 
-import { vkeyWitnessFromSignData, ledgerUtxoToBuilderUtxo, loadContract } from "./commons";
+import { vkeyWitnessFromSignData, ledgerUtxoToBuilderUtxo } from "./commons";
+import { loadContract } from "../onchain/contract";
 import getTxBuilder from "./getTxBuilder";
 
 export async function getLockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
