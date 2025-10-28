@@ -1,12 +1,11 @@
-import { Address, isData, DataB, Tx } from "@harmoniclabs/plu-ts";
+import { Address, isData, DataB, Tx } from "@harmoniclabs/buildooor";
+import { Tx as LedgerTx } from "@harmoniclabs/cardano-ledger-ts";
 import { fromAscii, uint8ArrayEq } from "@harmoniclabs/uint8array-utils";
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
 import { BrowserWallet, IWallet } from "@meshsdk/core";
-import { script, scriptTestnetAddr } from "../../contracts/helloPluts";
-import { toPlutsUtxo } from "./mesh-utils";
-import getTxBuilder from "./getTxBuilder";
 import { Emulator } from "@harmoniclabs/pluts-emulator";
-import { vkeyWitnessFromSignData } from "./commons";
+import { vkeyWitnessFromSignData, ledgerUtxoToBuilderUtxo, loadContract } from "./commons";
+import getTxBuilder from "./getTxBuilder";
 
 export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
   const txBuilder = await getTxBuilder(provider);
@@ -14,12 +13,14 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
 
   const walletAddress = Address.fromString(await wallet.getChangeAddress());
 
-  const utxos = await provider.getUtxos(walletAddress);
+  const utxos = await provider.getUtxos(walletAddress.toString());
   if (utxos.length === 0) {
     throw new Error(isEmulator ? "No UTxOs have been found at this address on the emulated ledger" : "Have you requested funds from the faucet?");
   }  
 
   let myAddr!: Address;
+
+  const { testnetAddress, script } = await loadContract();
 
   /**
    * Wallets might have multiple addresses;
@@ -30,7 +31,7 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
   **/
 
   // reassign utxoToSpend with only the responses with valid datum
-  const utxoToSpend = (await provider.addressUtxos(scriptTestnetAddr)).find(utxo => {
+  const utxoToSpend = (await provider.addressUtxos(testnetAddress.toString())).find(utxo => {
     const datum = utxo.resolved.datum;
 
     // datum is inline and is only bytes
@@ -73,7 +74,7 @@ export async function getUnlockTx(wallet: IWallet | BrowserWallet, provider: Blo
     }],
     requiredSigners: [myAddr.paymentCreds.hash],
     // make sure to include collateral when using contracts
-    collaterals: [utxos[0]],
+    collaterals: [ledgerUtxoToBuilderUtxo(utxos[0])],
     // send everything back to us
     changeAddress: myAddr
   });
@@ -97,7 +98,7 @@ export async function unlockTx(wallet: IWallet | BrowserWallet, provider: Emulat
 
   unsignedTx.addVKeyWitness(witness);
 
-  const txHash = await provider.submitTx(unsignedTx);
+  const txHash = await provider.submitTx(LedgerTx.fromCbor(unsignedTx.toCbor()));
   console.log("Transaction Hash:", txHash);
 
   if (provider instanceof Emulator) {

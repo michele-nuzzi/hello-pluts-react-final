@@ -1,4 +1,4 @@
-import { TxBuilder, defaultProtocolParameters, toCostModelArrV3 } from "@harmoniclabs/plu-ts";
+import { TxBuilder, defaultProtocolParameters } from "@harmoniclabs/buildooor";
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
 import { Emulator } from "@harmoniclabs/pluts-emulator";
 
