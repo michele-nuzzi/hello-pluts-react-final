@@ -1,10 +1,9 @@
-import { Value, DataB, Address, Tx } from "@harmoniclabs/buildooor";
-import { Tx as LedgerTx } from "@harmoniclabs/cardano-ledger-ts";
+import { Value, DataB, Address, Tx, UTxO } from "@harmoniclabs/buildooor";
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
 import { BrowserWallet, IWallet } from "@meshsdk/core";
 import { Emulator } from "@harmoniclabs/pluts-emulator";
 
-import { vkeyWitnessFromSignData, ledgerUtxoToBuilderUtxo } from "./commons";
+import { vkeyWitnessFromSignData } from "./commons";
 import { loadContract } from "../onchain/contract";
 import getTxBuilder from "./getTxBuilder";
 
@@ -29,7 +28,7 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
   const { testnetAddress } = await loadContract();
 
   return txBuilder.buildSync({
-    inputs: [{ utxo: ledgerUtxoToBuilderUtxo(utxo) }],
+    inputs: [{ utxo: utxo as UTxO }],
     outputs: [{ // output holding the founds that we'll spend later
       address: testnetAddress,
       // 10M lovelaces === 10 ADA
@@ -52,13 +51,16 @@ export async function lockTx(wallet: IWallet | BrowserWallet, provider: Emulator
   }
 
   const myAddr = Address.fromString(await wallet.getChangeAddress());
-
-  console.log("About to get lock tx");
   const unsignedTx = await getLockTx(wallet, provider, isEmulator);
-  console.log("Unsigned Tx:", unsignedTx.toJson());
   
   // Sign the tx body hash
   const txHashHex = unsignedTx.body.hash.toString();
+
+  console.log("Unsigned");
+  console.log(unsignedTx.body.hash.toString());
+  console.log(unsignedTx.body.toCbor().toString());
+  console.log(unsignedTx.toJson());
+
   // Build the witness set data
   const {key, signature} = await wallet.signData(txHashHex, myAddr.toString());
   const witness = vkeyWitnessFromSignData(key, signature);
@@ -66,7 +68,12 @@ export async function lockTx(wallet: IWallet | BrowserWallet, provider: Emulator
   // inject it to the unsigned tx
   unsignedTx.addVKeyWitness(witness);
 
-  const txHash = await provider.submitTx(LedgerTx.fromCbor(unsignedTx.toCbor()));
+  console.log("Signed");
+  console.log(unsignedTx.body.hash.toString());
+  console.log(unsignedTx.body.toCbor().toString());
+  console.log(unsignedTx.toJson());
+
+  const txHash = await provider.submitTx(unsignedTx.toCbor().toString());
   console.log("Transaction Hash:", txHash);
 
   if (provider instanceof Emulator) { // emulator

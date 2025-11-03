@@ -93,26 +93,3 @@ export function witnessFromSignData(key: string, signature: string): CborArray {
     new CborBytes(hexToBytes(signature))   // signature
   ]);
 }
-
-function ledgerDatumToBuilderDatum(datum: LedgerData | LedgerHash32): Data | Hash32 {
-  if (datum instanceof LedgerHash32) {
-    return new Hash32(datum.toBuffer());
-  }
-
-  return dataFromJson(datum.toJson());
-}
-
-export function ledgerUtxoToBuilderUtxo(utxo: UTxO): IUTxO {
-  return {
-    utxoRef: {
-      id: utxo.utxoRef.id.toString(),
-      index: utxo.utxoRef.index
-    },
-    resolved: {
-      address: utxo.resolved.address.toString(),
-      value: Value.fromCbor(utxo.resolved.value.toCbor()),
-      datum: utxo.resolved.datum ? ledgerDatumToBuilderDatum(utxo.resolved.datum) : undefined,
-      refScript: utxo.resolved.refScript ? Script.fromCbor(utxo.resolved.refScript.toCbor()) : undefined
-    }
-  };
-}
