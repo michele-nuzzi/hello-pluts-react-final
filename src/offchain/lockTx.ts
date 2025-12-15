@@ -1,11 +1,11 @@
-import { Value, DataB, Address, Tx, forceTxOutRefStr } from "@harmoniclabs/plu-ts";
+import { Value, DataB, Address, Tx, UTxO } from "@harmoniclabs/buildooor";
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
-import { BrowserWallet, IWallet, UTxO } from "@meshsdk/core";
-import { scriptTestnetAddr } from "../../contracts/helloPluts";
-import { toPlutsUtxo } from "./mesh-utils";
-import getTxBuilder from "./getTxBuilder";
+import { BrowserWallet, IWallet } from "@meshsdk/core";
 import { Emulator } from "@harmoniclabs/pluts-emulator";
+
 import { vkeyWitnessFromSignData } from "./commons";
+import { loadContract } from "../onchain/contract";
+import getTxBuilder from "./getTxBuilder";
 
 export async function getLockTx(wallet: IWallet | BrowserWallet, provider: BlockfrostPluts | Emulator, isEmulator: boolean): Promise<Tx> {
   // creates an address form the bech32 form
@@ -15,7 +15,7 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
 
   const txBuilder = await getTxBuilder(provider);
 
-  const utxos = await provider.getUtxos(myAddr);
+  const utxos = await provider.getUtxos(myAddr.toString());
   if (utxos.length === 0) {
     throw new Error(isEmulator ? "No UTxOs have been found at this address on the emulated ledger" : "Have you requested funds from the faucet?");
   }  
@@ -25,10 +25,12 @@ export async function getLockTx(wallet: IWallet | BrowserWallet, provider: Block
     throw new Error("not enough ada");
   }
 
+  const { testnetAddress } = await loadContract();
+
   return txBuilder.buildSync({
-    inputs: [{ utxo }],
+    inputs: [{ utxo: utxo as UTxO }],
     outputs: [{ // output holding the founds that we'll spend later
-      address: scriptTestnetAddr,
+      address: testnetAddress,
       // 10M lovelaces === 10 ADA
       value: Value.lovelaces(10_000_000),
       // remember to include a datum
@@ -49,13 +51,16 @@ export async function lockTx(wallet: IWallet | BrowserWallet, provider: Emulator
   }
 
   const myAddr = Address.fromString(await wallet.getChangeAddress());
-
-  console.log("About to get lock tx");
   const unsignedTx = await getLockTx(wallet, provider, isEmulator);
-  console.log("Unsigned Tx:", unsignedTx.toJson());
   
   // Sign the tx body hash
   const txHashHex = unsignedTx.body.hash.toString();
+
+  console.log("Unsigned");
+  console.log(unsignedTx.body.hash.toString());
+  console.log(unsignedTx.body.toCbor().toString());
+  console.log(unsignedTx.toJson());
+
   // Build the witness set data
   const {key, signature} = await wallet.signData(txHashHex, myAddr.toString());
   const witness = vkeyWitnessFromSignData(key, signature);
@@ -63,7 +68,12 @@ export async function lockTx(wallet: IWallet | BrowserWallet, provider: Emulator
   // inject it to the unsigned tx
   unsignedTx.addVKeyWitness(witness);
 
-  const txHash = await provider.submitTx(unsignedTx);
+  console.log("Signed");
+  console.log(unsignedTx.body.hash.toString());
+  console.log(unsignedTx.body.toCbor().toString());
+  console.log(unsignedTx.toJson());
+
+  const txHash = await provider.submitTx(unsignedTx.toCbor().toString());
   console.log("Transaction Hash:", txHash);
 
   if (provider instanceof Emulator) { // emulator

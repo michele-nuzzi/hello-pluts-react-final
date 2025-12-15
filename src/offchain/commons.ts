@@ -1,6 +1,8 @@
+import { VKeyWitness, Hash32, Data, Signature, IUTxO, Value, dataFromJson, Script } from "@harmoniclabs/buildooor";
 import { CborArray, CborBytes } from "@harmoniclabs/cbor";
+import { UTxO, Hash32 as LedgerHash32 } from "@harmoniclabs/cardano-ledger-ts";
+import { Data as LedgerData } from "@harmoniclabs/plutus-data";
 import { decode } from "cbor";
-import { VKey, VKeyWitness, Signature} from "@harmoniclabs/plu-ts";
 
 /**
  * Converts a hexadecimal string to a `Uint8Array` of bytes.
@@ -10,13 +12,13 @@ import { VKey, VKeyWitness, Signature} from "@harmoniclabs/plu-ts";
  * @throws {Error} If the input hexadecimal string has an uneven length.
  */
 export function hexToBytes(hex: string): Uint8Array {
-    if (hex.length % 2 !== 0) throw new Error("hexToBytes: uneven hex string length");
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < bytes.length; ++i) {
-      bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
-    }
-    return bytes;
+  if (hex.length % 2 !== 0) throw new Error("hexToBytes: uneven hex string length");
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; ++i) {
+    bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
   }
+  return bytes;
+}
 
 
 /**
@@ -28,20 +30,20 @@ export function hexToBytes(hex: string): Uint8Array {
  * @throws {Error} If the extracted signature is not a `Uint8Array` or does not have a length of 64 bytes.
  */
 export function extractSignatureFromCbor(hex: string): Uint8Array {
-    const decoded = decode(hexToBytes(hex));
-  
-    if (!Array.isArray(decoded)) {
-      throw new Error("Decoded signature is not an array");
-    }
-  
-    const sigBytes = decoded[3];
-  
-    if (!(sigBytes instanceof Uint8Array) || sigBytes.length !== 64) {
-      throw new Error("Invalid signature length; expected 64 bytes");
-    }
-  
-    return sigBytes;
+  const decoded = decode(hexToBytes(hex));
+
+  if (!Array.isArray(decoded)) {
+    throw new Error("Decoded signature is not an array");
   }
+
+  const sigBytes = decoded[3];
+
+  if (!(sigBytes instanceof Uint8Array) || sigBytes.length !== 64) {
+    throw new Error("Invalid signature length; expected 64 bytes");
+  }
+
+  return sigBytes;
+}
   
 /**
  * Extracts the public key from a COSE key represented as a hexadecimal string.
@@ -51,13 +53,13 @@ export function extractSignatureFromCbor(hex: string): Uint8Array {
  * @throws {Error} If the extracted public key is not a valid 32-byte `Uint8Array`.
  */
 export function extractPubKeyFromCoseKey(hex: string): Uint8Array {
-    const decoded = decode(hexToBytes(hex));
-    const pubKeyBytes = decoded.get(-2);
-    if (!(pubKeyBytes instanceof Uint8Array) || pubKeyBytes.length !== 32) {
-      throw new Error("Invalid public key extracted from COSE");
-    }
-    return pubKeyBytes;
+  const decoded = decode(hexToBytes(hex));
+  const pubKeyBytes = decoded.get(-2);
+  if (!(pubKeyBytes instanceof Uint8Array) || pubKeyBytes.length !== 32) {
+    throw new Error("Invalid public key extracted from COSE");
   }
+  return pubKeyBytes;
+}
   
 
 /**
@@ -68,26 +70,26 @@ export function extractPubKeyFromCoseKey(hex: string): Uint8Array {
  * @returns A `VKeyWitness` object containing the extracted public key and signature.
  */
 export function vkeyWitnessFromSignData(key: string, signature: string): VKeyWitness {
-    const pubKeyBytes = extractPubKeyFromCoseKey(key);
-    const sigBytes = extractSignatureFromCbor(signature);
+  const pubKeyBytes = extractPubKeyFromCoseKey(key);
+  const sigBytes = extractSignatureFromCbor(signature);
 
-    return new VKeyWitness(
-        new VKey(pubKeyBytes),
-        new Signature(sigBytes)
-    );
-  }
+  return new VKeyWitness({
+    vkey: new Hash32(pubKeyBytes),
+    signature: new Signature(sigBytes)
+  });
+}
   
-  /**
-   * Converts a wallet.signData signature into a CBOR vkey_witness
-   * to be used in a transaction witness set.
-   * TODO: Move to someplace else, or maybe it already exists in a library?
-   * @param key - hex-encoded public key (from `signData`)
-   * @param signature - hex-encoded Ed25519 signature (from `signData`)
-   * @returns a CBOR array representing a single `vkey_witness`
-   */
-  export function witnessFromSignData(key: string, signature: string): CborArray {
-    return new CborArray([
-      new CborBytes(hexToBytes(key)),        // vkey
-      new CborBytes(hexToBytes(signature))   // signature
-    ]);
-  }
+/**
+ * Converts a wallet.signData signature into a CBOR vkey_witness
+ * to be used in a transaction witness set.
+ * TODO: Move to someplace else, or maybe it already exists in a library?
+ * @param key - hex-encoded public key (from `signData`)
+ * @param signature - hex-encoded Ed25519 signature (from `signData`)
+ * @returns a CBOR array representing a single `vkey_witness`
+ */
+export function witnessFromSignData(key: string, signature: string): CborArray {
+  return new CborArray([
+    new CborBytes(hexToBytes(key)),        // vkey
+    new CborBytes(hexToBytes(signature))   // signature
+  ]);
+}

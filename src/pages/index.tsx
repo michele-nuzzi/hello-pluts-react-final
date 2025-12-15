@@ -6,13 +6,10 @@ import style from "@/styles/Home.module.css";
 import ConnectionHandler from "@/components/ConnectionHandler";
 import { lockTx } from "@/offchain/lockTx";
 import { unlockTx } from "@/offchain/unlockTx";
+
 import { Address } from "@harmoniclabs/plu-ts";
-
 import { BlockfrostPluts } from "@harmoniclabs/blockfrost-pluts";
-
 import { Emulator, initializeEmulator } from "@harmoniclabs/pluts-emulator";
-
-
 
 export default function Home() {
   const [useEmulator, setUseEmulator] = useState(false);

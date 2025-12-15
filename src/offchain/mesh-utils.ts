@@ -1,4 +1,4 @@
-import { Address, Hash28, Hash32, Script, UTxO, Value, dataFromCbor } from "@harmoniclabs/plu-ts";
+import { Address, Hash28, Hash32, Script, UTxO, Value, dataFromCbor } from "@harmoniclabs/buildooor";
 import { fromHex } from "@harmoniclabs/uint8array-utils";
 import { Asset, UTxO as MeshUTxO } from "@meshsdk/core";
 
